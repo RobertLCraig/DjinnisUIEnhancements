@@ -1,0 +1,14 @@
+## Interface: 120100
+## Title: Djinni's UI Enhancements
+## Author: Djinni
+## Version: 0.1.1
+## Notes: Small UI enhancements. Per-boss target frames + Druid Ironfur stack bar.
+## Category: User Interface
+## IconTexture: Interface\Icons\INV_Misc_Gear_01
+## SavedVariables: DjinnisUIEnhancementsDB
+## OptionalDeps: EnhanceQoL, ElvUI
+
+Core.lua
+BossTarget.lua
+IronfurBar.lua
+EditMode.lua
