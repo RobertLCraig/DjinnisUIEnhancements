@@ -89,6 +89,9 @@ loader:SetScript("OnEvent", function(self, event, arg1)
         if ns.modules.EditMode and ns.modules.EditMode.Init then
             ns.modules.EditMode.Init()
         end
+        if ns.modules.PriceTrackerTSM and ns.modules.PriceTrackerTSM.Init then
+            ns.modules.PriceTrackerTSM.Init()
+        end
     end
 end)
 
