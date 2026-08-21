@@ -32,8 +32,11 @@ local function getColor(unit, cfg)
     end
     if cfg.classColorPlayers and UnitIsPlayer(unit) then
         local _, class = UnitClass(unit)
-        local c = class and RAID_CLASS_COLORS[class]
-        if c then return c.r, c.g, c.b, true end
+        -- 12.1: compound tokens (boss1target) can return a "secret string", and
+        -- a secret cannot be used as a table key. Probe with pcall and fall
+        -- through to the reaction colour instead of erroring 10x/second.
+        local ok, c = pcall(function() return RAID_CLASS_COLORS[class] end)
+        if ok and c then return c.r, c.g, c.b, true end
     end
     if cfg.npcUseReaction then
         local r, g, b = UnitSelectionColor(unit, true)
@@ -222,8 +225,9 @@ local function updateFrame(f)
         f.powerBar:SetMinMaxValues(0, pwrMax)
         f.powerBar:SetValue(pwr)
         local ptype = UnitPowerType(unit)
-        local info = PowerBarColor and PowerBarColor[ptype]
-        if info then
+        -- Same secret-key hazard as the class colour above.
+        local okp, info = pcall(function() return PowerBarColor[ptype] end)
+        if okp and info then
             f.powerBar:SetStatusBarColor(info.r, info.g, info.b)
         end
     else
