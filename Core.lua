@@ -20,6 +20,20 @@ local DEFAULTS = {
         markerColor = { 1.0, 1.0, 0.40 },
         markerWidth = 2,
     },
+    comboPoints = {
+        enabled = true,
+        scale = 1.0,
+        size = 26,      -- per point, in pixels
+        spacing = 8,    -- gap between points
+        point = "CENTER",
+        relativePoint = "CENTER",
+        x = 0,
+        y = -200,
+        -- "cat"    = show whenever in Cat Form
+        -- "always" = always show while a Druid is logged in
+        -- "points" = only in Cat Form and only with at least 1 point
+        visibility = "cat",
+    },
     bossTarget = {
         enabled = true,
         scale = 1.0,
@@ -79,12 +93,18 @@ loader:SetScript("OnEvent", function(self, event, arg1)
         if ns.modules.IronfurBar and ns.modules.IronfurBar.OnDBReady then
             ns.modules.IronfurBar.OnDBReady()
         end
+        if ns.modules.ComboPoints and ns.modules.ComboPoints.OnDBReady then
+            ns.modules.ComboPoints.OnDBReady()
+        end
     elseif event == "PLAYER_LOGIN" then
         if ns.modules.BossTarget and ns.modules.BossTarget.Init then
             ns.modules.BossTarget.Init()
         end
         if ns.modules.IronfurBar and ns.modules.IronfurBar.Init then
             ns.modules.IronfurBar.Init()
+        end
+        if ns.modules.ComboPoints and ns.modules.ComboPoints.Init then
+            ns.modules.ComboPoints.Init()
         end
         if ns.modules.EditMode and ns.modules.EditMode.Init then
             ns.modules.EditMode.Init()
@@ -116,6 +136,10 @@ local helpLines = {
     "  /djue ifb size <w> <h> | scale <n> — size/scale Ironfur bar",
     "  /djue ifb vis <always|bear|stacks> — when the Ironfur bar is shown",
     "  /djue ifb show | hide | reset | status",
+    "  /djue cp unlock | lock — drag the combo points to position",
+    "  /djue cp size <n> | gap <n> | scale <n> — size/spacing/scale",
+    "  /djue cp vis <always|cat|points> — when the combo points are shown",
+    "  /djue cp show | hide | reset | status | debug",
     "  (or use /editmode to configure visually)",
 }
 
@@ -138,6 +162,13 @@ SlashCmdList.DJINNISUIE = function(input)
         local mod = ns.modules.IronfurBar
         if not mod or not mod.HandleCommand then
             print("IronfurBar module not loaded.")
+            return
+        end
+        mod.HandleCommand(rest)
+    elseif module == "cp" or module == "combo" or module == "combopoints" then
+        local mod = ns.modules.ComboPoints
+        if not mod or not mod.HandleCommand then
+            print("ComboPoints module not loaded.")
             return
         end
         mod.HandleCommand(rest)

@@ -25,5 +25,6 @@ ignore:
   - release.ps1
   - pkgmeta.yaml
   - docs
+  - tests
   - releases
   - DjinnisUIEnhancementsDB.lua

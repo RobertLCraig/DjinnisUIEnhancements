@@ -145,6 +145,22 @@ queue for a word.
 See `## Plan` is written for a stranger, below. A card nobody knows how to start is a card that does
 not get started.
 
+### Forbidden keys, and two legacy ones
+
+**Forbidden, and checked for: `status`, `created`, `updated`, `author`, `blocked_on`, `priority`.**
+The folder holds the first, git holds the next three, `blocked_on` is what the lane split replaced,
+and `priority` is an enum that rots because nothing forces anyone to revisit it. A copy of any of
+them drifts, and the whole point of the board is that state cannot disagree with itself. Derive
+last-touched from `git log` when rendering, and treat it as an advisory hint rather than state: a
+bulk reformat that touches every card would invert the signal.
+
+**Two more keys exist and must not be stripped**, both fallbacks for cards migrated out of a prose
+handover: `title:` is used when a card has no `# ` heading, and `acceptance:` when it has no
+`AC:BEGIN` sentinels. They are legacy rather than canonical, so do not add them to a new card, but
+deleting them from an old one loses that card's title or its acceptance outright.
+
+**References are IDs, never paths and never titles**, so a `git mv` or a retitle cannot break them.
+
 ## Surface the whole chain of decisions, not the first link
 
 **An option that only raises three more questions has not been costed** (Rob, 2026-08-20). The
@@ -162,7 +178,7 @@ together. If it does not, they are two cards.
 
 ## Links: say what the relationship IS, never a bare card number
 
-**A card number dropped into a sentence is not a link, it is a puzzle.** `firecrm#0053` in the
+**A card number dropped into a sentence is not a link, it is a puzzle.** `planhawk#0053` in the
 middle of a paragraph tells the reader that some other card matters and nothing about why, so they
 open it to find out, and that is a page load spent on something one clause would have said. This is
 the commonest way a card wastes the reader's time while looking complete.
@@ -177,7 +193,7 @@ issue tracker settled on:
 - `0088` - the time-capture phasing has to be ratified before this can be scoped.
 
 **Relates to**
-- `firecrm#0053` - the same scrub rule stopped that repo getting a remote, and the
+- `planhawk#0053` - the same scrub rule stopped that repo getting a remote, and the
   reasoning there applies here unchanged.
 ```
 
