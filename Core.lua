@@ -33,6 +33,13 @@ local DEFAULTS = {
         -- "always" = always show while a Druid is logged in
         -- "points" = only in Cat Form and only with at least 1 point
         visibility = "cat",
+        -- Resting shape. 0 = Blizzard's round gems with the claw swiping on
+        -- gain, which is the combination Rob accepted on 2026-09-08 and the
+        -- reason this defaults to 0 rather than to the newer option. 1..20 pins
+        -- that frame of the UF-DruidCP-Slash flipbook as a still claw instead.
+        -- Which frame reads as a claw can only be judged on screen, so it is a
+        -- dial rather than a constant, and `/djue cp claw 0` is the way back.
+        clawFrame = 0,
     },
     bossTarget = {
         enabled = true,
@@ -139,7 +146,8 @@ local helpLines = {
     "  /djue cp unlock | lock — drag the combo points to position",
     "  /djue cp size <n> | gap <n> | scale <n> — size/spacing/scale",
     "  /djue cp vis <always|cat|points> — when the combo points are shown",
-    "  /djue cp test — play the claw swipe on demand, to see if it works",
+    "  /djue cp claw <0-20> — 0 = the default gems + swipe, 1-20 = still claw",
+    "  /djue cp test — play the claw swipe on demand",
     "  /djue cp show | hide | reset | status | debug",
     "  (or use /editmode to configure visually)",
 }

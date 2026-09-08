@@ -110,6 +110,30 @@ local SLASH = { rows = 3, columns = 8, frames = 20, duration = 1 }
 -- Blizzard sizes the slash 26x41 against a 20x20 point.
 local SLASH_W, SLASH_H, SLASH_BASE = 26, 41, 20
 
+-- Static claw shape, cut out of the same slash sheet.
+--
+-- The druid atlas set has no still claw in it: the resting art is a round gem
+-- and the only claw is the swipe. So the shape comes from one frame of the
+-- flipbook, pinned instead of played. AtlasInfo gives the sheet's own texcoords
+-- inside the larger atlas file, and one cell is 1/8 of its width by 1/3 of its
+-- height, so a frame can be cropped out with SetTexCoord against info.file.
+--
+-- Which frame looks like a claw and which looks like a smear cannot be decided
+-- from source: nothing here can render the sheet. `cfg.clawFrame` is therefore
+-- a dial, 0 for the round gems and 1 to 20 to pin that frame.
+local function clawTexCoords(frameIndex)
+    local info = C_Texture and C_Texture.GetAtlasInfo and C_Texture.GetAtlasInfo(ATLAS.slash)
+    if not info or not info.file then return nil end
+    local n = math.max(1, math.min(SLASH.frames, math.floor(frameIndex)))
+    local col = (n - 1) % SLASH.columns
+    local row = math.floor((n - 1) / SLASH.columns)
+    local w = (info.rightTexCoord - info.leftTexCoord) / SLASH.columns
+    local h = (info.bottomTexCoord - info.topTexCoord) / SLASH.rows
+    local l = info.leftTexCoord + (col * w)
+    local t = info.topTexCoord + (row * h)
+    return info.file, l, l + w, t, t + h
+end
+
 -- Use the atlas if the client still has it, otherwise a flat colour. A missing
 -- atlas draws nothing at all, and an invisible bar reads as a broken addon.
 local function setArt(tex, atlas, r, g, b, a)
@@ -193,6 +217,10 @@ local function buildPoint(index)
     setArt(f.icon, ATLAS.icon, 1, 1, 1, 0.9)
     f.icon:SetAllPoints()
 
+    f.claw = f:CreateTexture(nil, "ARTWORK", nil, 3)
+    f.claw:SetPoint("CENTER", 1, 3)
+    f.claw:Hide()
+
     f.slash = f:CreateTexture(nil, "OVERLAY", nil, 2)
     setArt(f.slash, ATLAS.slash, 1, 1, 1, 0.9)
     f.slash:SetPoint("CENTER", 1, 3)
@@ -204,12 +232,40 @@ local function buildPoint(index)
     return f
 end
 
+-- Claw style swaps the whole resting shape: the gem, its shadow and its icon go
+-- away and the pinned claw frame carries the state instead, bright when the
+-- point is up and dark when it is not. Falls back to the gems on its own if the
+-- crop failed, so a bad frame number cannot leave an empty row.
+local function applyStyle(f)
+    local wanted = (ns.db.comboPoints.clawFrame or 0) > 0
+    local file, l, r, t, b
+    if wanted then
+        file, l, r, t, b = clawTexCoords(ns.db.comboPoints.clawFrame)
+    end
+    f._claw = file ~= nil
+    if f._claw then
+        f.claw:SetTexture(file)
+        f.claw:SetTexCoord(l, r, t, b)
+    end
+    f.claw:SetShown(f._claw)
+    f.shadow:SetShown(not f._claw)
+    f.icon:SetShown(not f._claw)
+end
+
 -- The ring glow and the slash are effects, not state: both rest hidden and are
--- driven by gainAnim. Only the gem and the icon say how many points are up.
+-- driven by gainAnim. Only the resting shape says how many points are up.
 local function setPointActive(f, on)
-    f.active:SetShown(on)
-    f.inactive:SetShown(not on)
-    f.icon:SetAlpha(on and 1.0 or 0.30)
+    if f._claw then
+        f.active:Hide()
+        f.inactive:Hide()
+        local shade = on and 1.0 or 0.22
+        f.claw:SetVertexColor(shade, shade, shade)
+        f.claw:SetAlpha(on and 1.0 or 0.55)
+    else
+        f.active:SetShown(on)
+        f.inactive:SetShown(not on)
+        f.icon:SetAlpha(on and 1.0 or 0.30)
+    end
     if not on then
         if f.gainAnim then f.gainAnim:Stop() end
         f.glow:Hide()
@@ -270,7 +326,10 @@ local function applyLayout()
         f:SetPoint("LEFT", container, "LEFT", (i - 1) * (size + gap), 0)
         f.shadow:SetSize(size * 1.10, size * 1.10)
         f.glow:SetSize(size * 1.60, size * 1.60)
-        f.slash:SetSize(SLASH_W * (size / SLASH_BASE), SLASH_H * (size / SLASH_BASE))
+        local sw, sh = SLASH_W * (size / SLASH_BASE), SLASH_H * (size / SLASH_BASE)
+        f.slash:SetSize(sw, sh)
+        f.claw:SetSize(sw, sh)
+        applyStyle(f)
         f:Show()
     end
 
@@ -442,14 +501,16 @@ function Mod.HandleCommand(rest)
     if not cfg then print("DB not ready.") return end
 
     if cmd == "" or cmd == "status" then
-        print(("ComboPoints: enabled=%s scale=%.2f size=%d gap=%d pos=(%s,%s,%d,%d) vis=%s points=%d/%d")
+        print(("ComboPoints: enabled=%s scale=%.2f size=%d gap=%d pos=(%s,%s,%d,%d) vis=%s claw=%d points=%d/%d")
             :format(tostring(cfg.enabled), cfg.scale, cfg.size, cfg.spacing,
-                cfg.point, cfg.relativePoint, cfg.x, cfg.y, cfg.visibility, lastCount, maxPoints))
+                cfg.point, cfg.relativePoint, cfg.x, cfg.y, cfg.visibility,
+                cfg.clawFrame or 0, lastCount, maxPoints))
     elseif cmd == "reset" then
         local d = ns.DEFAULTS.comboPoints
         cfg.size, cfg.spacing, cfg.scale = d.size, d.spacing, d.scale
         cfg.point, cfg.relativePoint = d.point, d.relativePoint
         cfg.x, cfg.y = d.x, d.y
+        cfg.clawFrame = d.clawFrame
         applyLayout()
         print("Combo points reset.")
     elseif cmd == "size" then
@@ -478,6 +539,26 @@ function Mod.HandleCommand(rest)
             print("Scale: " .. n)
         else
             print("Usage: /djue cp scale <0.3..3.0>")
+        end
+    elseif cmd == "claw" then
+        local n = tonumber(args)
+        if n and n >= 0 and n <= SLASH.frames then
+            cfg.clawFrame = math.floor(n)
+            applyLayout()
+            -- Light every point so the shape can actually be judged, then let
+            -- the next power event put the real count back.
+            for i = 1, maxPoints do
+                if points[i] then setPointActive(points[i], true) end
+            end
+            if cfg.clawFrame == 0 then
+                print("Claw 0: round gems, Blizzard's resting art.")
+            else
+                print(("Claw frame %d of %d. All points lit so you can judge it; next point gained or spent restores the real count. Try the neighbours: /djue cp claw %d")
+                    :format(cfg.clawFrame, SLASH.frames, cfg.clawFrame + 1))
+            end
+        else
+            print(("Usage: /djue cp claw <0..%d>. 0 is the round gems; 1 to %d pin that frame of the swipe as a still claw.")
+                :format(SLASH.frames, SLASH.frames))
         end
     elseif cmd == "test" or cmd == "swipe" then
         -- The swipe lasts one second and only fires on a gain, so "I saw
@@ -556,6 +637,6 @@ function Mod.HandleCommand(rest)
                     tostring(container and container:IsShown()),
                     tostring(container and container._unlocked or false)))
     else
-        print("cp commands: status | debug | test | reset | size <n> | gap <n> | scale <n> | unlock | lock | show | hide | vis <always|cat|points>")
+        print("cp commands: status | debug | test | claw <0..20> | reset | size <n> | gap <n> | scale <n> | unlock | lock | show | hide | vis <always|cat|points>")
     end
 end

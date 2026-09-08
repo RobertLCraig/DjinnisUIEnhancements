@@ -41,6 +41,9 @@ local function newTexture()
     function t:SetPoint() end
     function t:SetAllPoints() end
     function t:SetSize() end
+    function t:SetTexture() end
+    function t:SetTexCoord() end
+    function t:SetVertexColor() end
     function t:SetShown(v) self.shown = v and true or false end
     function t:SetAlpha(v) self.alpha = v end
     function t:Show() self.shown = true end
@@ -127,7 +130,18 @@ env.InCombatLockdown = function() return false end
 env.issecretvalue = function(v) return v == SECRET end -- rawequal-style, no metamethod
 env.C_Secrets = { ShouldUnitPowerBeSecret = function() return world.secretPower end,
                   ShouldUnitPowerMaxBeSecret = function() return world.secretPower end }
-env.C_Texture = { GetAtlasInfo = function() return { width = 20, height = 20 } end }
+-- `atlasKnown = false` is a client that no longer has the UF-DruidCP-* names.
+world.atlasKnown = true
+env.C_Texture = {
+    GetAtlasInfo = function()
+        if not world.atlasKnown then return nil end
+        return {
+            width = 20, height = 20, file = 12345,
+            leftTexCoord = 0.0, rightTexCoord = 0.5,
+            topTexCoord = 0.0, bottomTexCoord = 0.25,
+        }
+    end,
+}
 
 -- issecretvalue must not itself trip the metamethods.
 env.issecretvalue = function(v) return rawequal(v, SECRET) end
@@ -145,6 +159,7 @@ ns.DEFAULTS = {
         visibility = "cat",
     },
 }
+ns.DEFAULTS.comboPoints.clawFrame = 0 -- gems, so litCount() reads the gem art
 ns.db = { comboPoints = {} }
 for k, v in pairs(ns.DEFAULTS.comboPoints) do ns.db.comboPoints[k] = v end
 
@@ -283,8 +298,44 @@ check("hidden on a non-druid", not container:IsShown())
 world.class = "DRUID"
 
 -- ---------------------------------------------------------------------------
--- Events actually got registered
+-- Claw style: the shape swaps, and a failed crop falls back to the gems
 -- ---------------------------------------------------------------------------
+
+local function count(field)
+    local n = 0
+    for _, child in ipairs(container._children) do
+        if child[field] and child[field].shown then n = n + 1 end
+    end
+    return n
+end
+
+ns.db.comboPoints.visibility = "cat"
+world.powerType, world.class, world.combo = 3, "DRUID", 3
+
+ns.db.comboPoints.clawFrame = 10
+Mod.ApplyLayout()
+Mod.Redraw()
+check("claw frame shows the claw", count("claw") == 5, "got " .. count("claw"))
+check("claw frame hides the gem icon", count("icon") == 0, "got " .. count("icon"))
+
+ns.db.comboPoints.clawFrame = 0
+Mod.ApplyLayout()
+Mod.Redraw()
+check("frame 0 goes back to gems", count("claw") == 0 and count("icon") == 5,
+      ("claw=%d icon=%d"):format(count("claw"), count("icon")))
+check("gems still count correctly after the round trip", litCount() == 3, "got " .. litCount())
+
+-- A client that no longer knows the atlas must not leave an empty row.
+world.atlasKnown = false
+ns.db.comboPoints.clawFrame = 10
+Mod.ApplyLayout()
+Mod.Redraw()
+check("unknown atlas falls back to gems rather than nothing",
+      count("claw") == 0 and count("icon") == 5,
+      ("claw=%d icon=%d"):format(count("claw"), count("icon")))
+world.atlasKnown = true
+ns.db.comboPoints.clawFrame = 0
+Mod.ApplyLayout()
 
 print(("%d passed, %d failed"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)
