@@ -48,8 +48,39 @@ local function newTexture()
     return t
 end
 
+-- Animation stubs. The group counts its Restart calls, which is how the tests
+-- tell "the claw swiped" from "the point is merely lit".
+local function newAnimation()
+    local a = {}
+    function a:SetTarget() end
+    function a:SetDuration() end
+    function a:SetStartDelay() end
+    function a:SetFromAlpha() end
+    function a:SetToAlpha() end
+    function a:SetFlipBookRows() end
+    function a:SetFlipBookColumns() end
+    function a:SetFlipBookFrames() end
+    return a
+end
+
+local function newAnimGroup()
+    local g = { restarts = 0, _scripts = {} }
+    function g:SetToFinalAlpha() end
+    function g:CreateAnimation() return newAnimation() end
+    function g:SetScript(k, fn) self._scripts[k] = fn end
+    function g:Restart()
+        self.restarts = self.restarts + 1
+        if self._scripts.OnPlay then self._scripts.OnPlay() end
+    end
+    function g:Stop()
+        if self._scripts.OnStop then self._scripts.OnStop() end
+    end
+    return g
+end
+
 local function newFrame(_, _, parent)
     local f = { _shown = true, _children = {}, _events = {} }
+    function f:CreateAnimationGroup() return newAnimGroup() end
     function f:SetPoint() end
     function f:SetSize() end
     function f:SetScale() end
@@ -171,6 +202,57 @@ world.secretPower = false
 world.combo = 2
 Mod.Redraw()
 check("recovers once the value is readable again", litCount() == 2, "got " .. litCount())
+
+-- ---------------------------------------------------------------------------
+-- The claw swipe fires on a gain, and only on a gain
+-- ---------------------------------------------------------------------------
+
+local function swipes()
+    local n = 0
+    for _, child in ipairs(container._children) do
+        n = n + (child.gainAnim and child.gainAnim.restarts or 0)
+    end
+    return n
+end
+
+local function resetSwipes()
+    for _, child in ipairs(container._children) do
+        if child.gainAnim then child.gainAnim.restarts = 0 end
+    end
+end
+
+world.combo = 0
+Mod.Redraw()
+resetSwipes()
+
+world.combo = 2
+Mod.Redraw()
+check("two new points swipe twice", swipes() == 2, "got " .. swipes())
+
+resetSwipes()
+Mod.Redraw()
+check("a redraw with no change does not swipe", swipes() == 0, "got " .. swipes())
+
+resetSwipes()
+world.combo = 1
+Mod.Redraw()
+check("spending a point does not swipe", swipes() == 0, "got " .. swipes())
+
+resetSwipes()
+world.combo = 3
+Mod.Redraw()
+check("only the newly lit points swipe", swipes() == 2, "got " .. swipes())
+
+-- A point going out must not leave the claw or the glow frozen on screen.
+world.combo = 0
+Mod.Redraw()
+local stuck = 0
+for _, child in ipairs(container._children) do
+    if (child.slash and child.slash.shown) or (child.glow and child.glow.shown) then
+        stuck = stuck + 1
+    end
+end
+check("no claw or glow left showing once points are spent", stuck == 0, stuck .. " stuck")
 
 -- ---------------------------------------------------------------------------
 -- Visibility policy

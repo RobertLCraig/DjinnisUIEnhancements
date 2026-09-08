@@ -98,7 +98,17 @@ local ATLAS = {
     active   = "UF-DruidCP-BG-Active",
     glow     = "UF-DruidCP-Ring-Glow",
     icon     = "UF-DruidCP-Icon",
+    slash    = "UF-DruidCP-Slash",
 }
+
+-- The claw. UF-DruidCP-Slash is a flipbook sheet, 3 rows by 8 columns, 20 used
+-- frames, played over one second when a point is gained. It is the only claw in
+-- the druid set: the resting art is a round gem, so without this the display is
+-- a row of circles. Numbers copied from DruidComboPointBar.xml's activateAnim.
+local SLASH = { rows = 3, columns = 8, frames = 20, duration = 1 }
+
+-- Blizzard sizes the slash 26x41 against a 20x20 point.
+local SLASH_W, SLASH_H, SLASH_BASE = 26, 41, 20
 
 -- Use the atlas if the client still has it, otherwise a flat colour. A missing
 -- atlas draws nothing at all, and an invisible bar reads as a broken addon.
@@ -108,6 +118,56 @@ local function setArt(tex, atlas, r, g, b, a)
     else
         tex:SetColorTexture(r, g, b, a or 1)
     end
+end
+
+-- One animation group per point: the claw flipbook, plus the ring glow pulsing
+-- up and back down under it. The textures are shown for the duration and hidden
+-- again on every exit path, including Stop(), so a point that goes out mid-swipe
+-- does not leave a frozen claw behind.
+local function buildGainAnim(f)
+    if not f.CreateAnimationGroup then return nil end
+    local ag = f:CreateAnimationGroup()
+    ag:SetToFinalAlpha(true)
+
+    -- No Blizzard Lua calls CreateAnimation("FlipBook"), only the XML tag, so
+    -- the type string is inferred from the convention the other types follow.
+    -- If it is wrong the call returns nil, and an unguarded method on nil would
+    -- take the whole point frame down and leave nothing on screen. Degrade to
+    -- the glow pulse instead, and let `/djue cp debug` say the claw is missing.
+    local fb = ag:CreateAnimation("FlipBook")
+    if fb and fb.SetFlipBookRows then
+        fb:SetTarget(f.slash)
+        fb:SetDuration(SLASH.duration)
+        fb:SetFlipBookRows(SLASH.rows)
+        fb:SetFlipBookColumns(SLASH.columns)
+        fb:SetFlipBookFrames(SLASH.frames)
+        f.hasClaw = true
+    end
+
+    local up = ag:CreateAnimation("Alpha")
+    up:SetTarget(f.glow)
+    up:SetFromAlpha(0)
+    up:SetToAlpha(1)
+    up:SetDuration(0.27)
+
+    local down = ag:CreateAnimation("Alpha")
+    down:SetTarget(f.glow)
+    down:SetFromAlpha(1)
+    down:SetToAlpha(0)
+    down:SetStartDelay(0.27)
+    down:SetDuration(0.47)
+
+    -- Without the flipbook the sheet would sit there as one static frame, which
+    -- looks like a graphical fault rather than a missing effect.
+    local function begin()
+        if f.hasClaw then f.slash:Show() end
+        f.glow:Show()
+    end
+    local function finish() f.slash:Hide(); f.glow:Hide() end
+    ag:SetScript("OnPlay", begin)
+    ag:SetScript("OnStop", finish)
+    ag:SetScript("OnFinished", finish)
+    return ag
 end
 
 local function buildPoint(index)
@@ -133,15 +193,28 @@ local function buildPoint(index)
     setArt(f.icon, ATLAS.icon, 1, 1, 1, 0.9)
     f.icon:SetAllPoints()
 
+    f.slash = f:CreateTexture(nil, "OVERLAY", nil, 2)
+    setArt(f.slash, ATLAS.slash, 1, 1, 1, 0.9)
+    f.slash:SetPoint("CENTER", 1, 3)
+    f.slash:Hide()
+
+    f.gainAnim = buildGainAnim(f)
+
     points[index] = f
     return f
 end
 
+-- The ring glow and the slash are effects, not state: both rest hidden and are
+-- driven by gainAnim. Only the gem and the icon say how many points are up.
 local function setPointActive(f, on)
     f.active:SetShown(on)
-    f.glow:SetShown(on)
     f.inactive:SetShown(not on)
     f.icon:SetAlpha(on and 1.0 or 0.30)
+    if not on then
+        if f.gainAnim then f.gainAnim:Stop() end
+        f.glow:Hide()
+        f.slash:Hide()
+    end
 end
 
 -- ---------------------------------------------------------------------------
@@ -197,6 +270,7 @@ local function applyLayout()
         f:SetPoint("LEFT", container, "LEFT", (i - 1) * (size + gap), 0)
         f.shadow:SetSize(size * 1.10, size * 1.10)
         f.glow:SetSize(size * 1.60, size * 1.60)
+        f.slash:SetSize(SLASH_W * (size / SLASH_BASE), SLASH_H * (size / SLASH_BASE))
         f:Show()
     end
 
@@ -236,6 +310,7 @@ end
 local function redraw()
     if not container then return end
 
+    local previous = lastCount
     local n = readCombo()
     if n then lastCount = n end -- nil means secret: keep the last known count
 
@@ -243,11 +318,21 @@ local function redraw()
         if container:IsShown() then container:Hide() end
         return
     end
-    if not container:IsShown() then container:Show() end
+    local wasHidden = not container:IsShown()
+    if wasHidden then container:Show() end
 
     for i = 1, maxPoints do
         local f = points[i]
-        if f then setPointActive(f, i <= lastCount) end
+        if f then
+            local on = i <= lastCount
+            setPointActive(f, on)
+            -- Swipe only the points that just lit. Replaying it on every redraw
+            -- would fire the claw on a form change or a talent swap, and showing
+            -- the bar already full is not a gain.
+            if on and not wasHidden and i > previous and f.gainAnim then
+                f.gainAnim:Restart()
+            end
+        end
     end
 end
 Mod.Redraw = redraw
@@ -441,9 +526,15 @@ function Mod.HandleCommand(rest)
             regs[#regs + 1] = e .. "=" .. tostring(eventFrame:IsEventRegistered(e))
         end
         print("events: " .. table.concat(regs, " "))
-        print(("atlasPresent=%s (if false the art fell back to plain squares)")
-            :format(tostring(C_Texture and C_Texture.GetAtlasInfo
-                    and C_Texture.GetAtlasInfo(ATLAS.active) ~= nil)))
+        local function atlasOk(name)
+            return C_Texture and C_Texture.GetAtlasInfo
+                and C_Texture.GetAtlasInfo(name) ~= nil
+        end
+        print(("atlasPresent=%s slashAtlas=%s clawAnim=%s")
+            :format(tostring(atlasOk(ATLAS.active)), tostring(atlasOk(ATLAS.slash)),
+                    tostring(points[1] and points[1].hasClaw or false)))
+        print("  (atlasPresent false = art fell back to plain squares;"
+            .. " clawAnim false = gain pulses the glow only, no claw swipe)")
         print(("visibility=%s -> shouldShow=%s frameShown=%s _unlocked=%s")
             :format(cfg.visibility, tostring(shouldShow()),
                     tostring(container and container:IsShown()),
