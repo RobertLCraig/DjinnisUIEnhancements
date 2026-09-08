@@ -479,6 +479,22 @@ function Mod.HandleCommand(rest)
         else
             print("Usage: /djue cp scale <0.3..3.0>")
         end
+    elseif cmd == "test" or cmd == "swipe" then
+        -- The swipe lasts one second and only fires on a gain, so "I saw
+        -- nothing" is ambiguous between a broken claw and a missed one. This
+        -- plays it on demand, out of combat, with nothing else going on.
+        if not container then print("Not built. /djue cp show first.") return end
+        local played = 0
+        for i = 1, maxPoints do
+            local f = points[i]
+            if f and f.gainAnim then
+                setPointActive(f, true)
+                f.gainAnim:Restart()
+                played = played + 1
+            end
+        end
+        print(("Swiped %d point(s). hasClaw=%s. Points return to their real state on the next update.")
+            :format(played, tostring(points[1] and points[1].hasClaw or false)))
     elseif cmd == "unlock" then
         setUnlocked(true)
         print("Combo points unlocked (drag to move; /djue cp lock to save).")
@@ -540,6 +556,6 @@ function Mod.HandleCommand(rest)
                     tostring(container and container:IsShown()),
                     tostring(container and container._unlocked or false)))
     else
-        print("cp commands: status | debug | reset | size <n> | gap <n> | scale <n> | unlock | lock | show | hide | vis <always|cat|points>")
+        print("cp commands: status | debug | test | reset | size <n> | gap <n> | scale <n> | unlock | lock | show | hide | vis <always|cat|points>")
     end
 end

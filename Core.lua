@@ -139,6 +139,7 @@ local helpLines = {
     "  /djue cp unlock | lock — drag the combo points to position",
     "  /djue cp size <n> | gap <n> | scale <n> — size/spacing/scale",
     "  /djue cp vis <always|cat|points> — when the combo points are shown",
+    "  /djue cp test — play the claw swipe on demand, to see if it works",
     "  /djue cp show | hide | reset | status | debug",
     "  (or use /editmode to configure visually)",
 }
