@@ -88,10 +88,10 @@ Every one of these needs a live client. Ticks below are from Rob's own `/djue cp
       `frameShown=true`.
 - [x] Generate and spend points. `readCombo` moved 0 to 5 and `lastCount` followed it exactly.
       **Not compared against the stock bar side by side**, so "no visible lag" is unproven.
-- [ ] **`/djue cp debug` IN COMBAT.** Both dumps read `inCombat=false`, so the one path the secret
-      guard exists for has still never been exercised. Wanted: `powerWouldBeSecret` and a real
-      `readCombo` while `lockdown=true`. If it prints `<secret/unreadable>`, the guard is working
-      but the display is frozen mid-fight, and that is the finding this card is really waiting on.
+- [x] **`/djue cp debug` IN COMBAT.** Two dumps at `inCombat=true lockdown=true`, both
+      `powerWouldBeSecret=false readCombo=5 readComboMax=5`. **Combo points on the player are not
+      secret in combat**, so the display does not freeze mid-fight. The guard stays anyway; see the
+      Comments entry for why.
 - [x] All five events `=true`. 12.1 refused none of them.
 - [x] `atlasPresent=true`. The `UF-DruidCP-*` names are still live in 12.1 and the flat-colour
       fallback was not used.
@@ -136,6 +136,30 @@ The second dump is identical except `readCombo=5 lastCount=5`.
 combat says nothing about in combat. Until a dump exists with `lockdown=true`, the secret path is
 proven only by `tests/test_combopoints.lua`, against a stubbed API, and the module's central claim
 is unverified where it counts.
+
+### 2026-09-08, in combat, and the art argument settled
+
+**The combat dump landed.** Two of them, both `inCombat=true lockdown=true`, both
+`powerWouldBeSecret=false readCombo=5 readComboMax=5`. So **a player's own combo points are not
+secret in combat in 12.1**, and the display does not freeze mid-fight.
+
+**The guard stays, and this measurement is the reason to write down rather than to delete it.**
+`SecretWhenUnitPowerRestricted` is on `UnitPower` in the API documentation; what today's client
+does is Blizzard's to change in any patch, and the predicate costs one call. A future session
+reading "measured not secret" as "the guard is dead code" would be removing the only thing standing
+between a patch note and a frozen bar. Also confirmed the same run: `slashAtlas=true clawAnim=true`,
+so `CreateAnimation("FlipBook")` is the right type string and the inference held.
+
+**The art went one round and came back.** Rob expected a claw that fills up, so a still claw was cut
+out of one frame of the slash sheet and put behind `/djue cp claw <0..20>`. He tried frames 1, 10,
+11, 12, 14, 15 and 20 and rejected all of them: a frame of a motion-blurred swipe does not read as a
+claw at rest. **Reverted in full** (`git revert 85d889b`), and the gems plus the swipe on gain are
+what ships. `board/discarded/` was not used because the card as a whole was not abandoned, only one
+attempt inside it.
+
+The lesson worth keeping: **an art option that cannot be rendered outside the client cannot be
+chosen outside the client either.** Handing Rob a dial was the right shape for the question, and the
+answer was no.
 
 An adversarial review still owes an entry here, including the three security questions from the
 board README, before this card leaves `ai-review/`.

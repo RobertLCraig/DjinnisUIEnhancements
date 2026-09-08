@@ -83,9 +83,14 @@ in the `pkgmeta.yaml` ignore list, so it never reaches the game folder.
   `UNIT_SPELLCAST_SENT`, so **it is broad, not a boss-frame quirk**, and this addon is not proven
   clear of it on other paths.
 - In progress: nothing.
-- **Not proven:** `ComboPoints.lua` has never run in a client. Its offline harness passes and was
-  mutation-tested, but that covers logic only. Nothing visual, nothing about anchoring, and not
-  whether the `UF-DruidCP-*` atlases actually exist at runtime.
+- **Not proven:** `ComboPoints.lua` has run in a client, in and out of combat, and card `0001`
+  records what that settled. Four criteria on it are still open, all of them things nobody has sat
+  down and tried: shifting out of cat, drag-and-reload persistence, the six-point talent, and a full
+  dungeon with no Lua error.
+- **A trap for whoever reads `readCombo()` next.** Combo points measured **not** secret in combat on
+  2026-09-08, so the two guards look like dead code and are not. `UnitPower` carries
+  `SecretWhenUnitPowerRestricted` in the API docs, which is Blizzard's to enforce whenever they
+  choose; the measurement is what today's client does, not a promise. Card `0001` has the dump.
 
 ## What's next (in order)
 **`docs/board/` owns this.** One card is open: `0001` needs an adversarial pass and then Rob at a
