@@ -81,17 +81,20 @@ does **not** cover anything visual, anything about anchoring, or whether the atl
 
 ## Acceptance criteria
 
-Every one of these needs a live client. Nothing here has been run in the game.
+Every one of these needs a live client. Ticks below are from Rob's own `/djue cp debug` dumps on
+2026-09-08 at 02:06 and 02:09, quoted in the Comments entry.
 
-- [ ] Log in on a feral druid. Shift to cat. Five claw points appear at screen centre, 200px down.
-- [ ] Generate and spend points. The lit count matches the stock bar under the player frame, with
-      no visible lag.
-- [ ] `/djue cp debug` in combat prints `powerWouldBeSecret=false` and a real `readCombo`. If it
-      prints `<secret/unreadable>`, the guard is doing its job but the display is frozen, and that
-      is a finding worth writing on this card.
-- [ ] `/djue cp debug` shows all five events `=true`. Any `false` means 12.1 refused one.
-- [ ] `/djue cp debug` shows `atlasPresent=true`. If false, the art fell back to plain squares and
-      the atlas names need re-reading out of `wow-ui-source`.
+- [x] Log in on a feral druid. Shift to cat. `builtPointFrames=5`, `shouldShow=true`,
+      `frameShown=true`.
+- [x] Generate and spend points. `readCombo` moved 0 to 5 and `lastCount` followed it exactly.
+      **Not compared against the stock bar side by side**, so "no visible lag" is unproven.
+- [ ] **`/djue cp debug` IN COMBAT.** Both dumps read `inCombat=false`, so the one path the secret
+      guard exists for has still never been exercised. Wanted: `powerWouldBeSecret` and a real
+      `readCombo` while `lockdown=true`. If it prints `<secret/unreadable>`, the guard is working
+      but the display is frozen mid-fight, and that is the finding this card is really waiting on.
+- [x] All five events `=true`. 12.1 refused none of them.
+- [x] `atlasPresent=true`. The `UF-DruidCP-*` names are still live in 12.1 and the flat-colour
+      fallback was not used.
 - [ ] Shift out of cat. The points hide. Shift back. They return.
 - [ ] `/djue cp unlock`, drag it, `/djue cp lock`, `/reload`. It is where it was left.
 - [ ] Take the talent that raises the cap to 6. A sixth point appears.
@@ -99,5 +102,40 @@ Every one of these needs a live client. Nothing here has been run in the game.
 
 ## Comments
 
-_(An adversarial review owes an entry here before this card leaves `ai-review/`, including the
-three security questions from the board README.)_
+### 2026-09-08, Rob's client, first run
+
+Two `/djue cp debug` dumps, one at 0 points and one at 5:
+
+```
+class=DRUID isDruid=true powerType=3 inCatForm=true
+inCombat=false lockdown=false
+powerWouldBeSecret=false readCombo=0 readComboMax=5
+lastCount=0 maxPoints=5 builtPointFrames=5
+events: UNIT_POWER_FREQUENT=true UNIT_MAXPOWER=true UNIT_DISPLAYPOWER=true
+        UPDATE_SHAPESHIFT_FORM=true PLAYER_ENTERING_WORLD=true
+atlasPresent=true
+visibility=cat -> shouldShow=true frameShown=true _unlocked=false
+```
+
+The second dump is identical except `readCombo=5 lastCount=5`.
+
+**Three things this settles for the whole workspace, not just this card.**
+
+1. **12.1 refused none of these five events.** `UNIT_POWER_FREQUENT`, `UNIT_MAXPOWER`,
+   `UNIT_DISPLAYPOWER`, `UPDATE_SHAPESHIFT_FORM` and `PLAYER_ENTERING_WORLD` all register. Worth
+   knowing because the refusal list is otherwise discovered one addon at a time.
+2. **The `UF-DruidCP-*` atlas names are still live.** `atlasPresent=true`, so the flat-colour
+   fallback in `setArt()` has never fired and remains untested in a client.
+3. **`C_Secrets.ShouldUnitPowerBeSecret` exists and answers.** It returned `false` rather than
+   erroring or being nil, which is the first confirmation in this workspace that the `C_Secrets`
+   predicate namespace is actually callable from an addon.
+
+**What this does NOT settle, and it is the thing that matters.** Both dumps read
+`inCombat=false lockdown=false`. Combo points are a combat resource, so the entire reason
+`readCombo()` carries two guards is a state neither dump was in. `powerWouldBeSecret=false` out of
+combat says nothing about in combat. Until a dump exists with `lockdown=true`, the secret path is
+proven only by `tests/test_combopoints.lua`, against a stubbed API, and the module's central claim
+is unverified where it counts.
+
+An adversarial review still owes an entry here, including the three security questions from the
+board README, before this card leaves `ai-review/`.
