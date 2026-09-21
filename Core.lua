@@ -41,6 +41,18 @@ local DEFAULTS = {
         -- dial rather than a constant, and `/djue cp claw 0` is the way back.
         clawFrame = 0,
     },
+    energyBar = {
+        scale = 1.0,
+        width = 200,
+        height = 16,
+        point = "CENTER",
+        relativePoint = "CENTER",
+        x = 0,
+        y = -230,       -- just under the combo points
+        -- "energy" = whenever energy is the displayed power (Cat Form)
+        -- "always" | "never"
+        visibility = "energy",
+    },
     bossTarget = {
         enabled = true,
         scale = 1.0,
@@ -138,6 +150,9 @@ loader:SetScript("OnEvent", function(self, event, arg1)
         end
         if ns.modules.ComboPoints and ns.modules.ComboPoints.Init then
             ns.modules.ComboPoints.Init()
+        end
+        if ns.modules.EnergyBar then
+            ns.modules.EnergyBar.Init()
         end
         if ns.modules.EditMode and ns.modules.EditMode.Init then
             ns.modules.EditMode.Init()

@@ -2,7 +2,7 @@
 ## Title: Djinni's UI Enhancements
 ## Author: Djinni
 ## Version: 0.6.0
-## Notes: Small UI enhancements. Per-boss target frames + Druid Ironfur stack bar + Feral combo points.
+## Notes: Small UI enhancements. Per-boss target frames + Druid Ironfur stack bar + Feral combo points + energy bar.
 ## Category: User Interface
 ## IconTexture: Interface\Icons\INV_Misc_Gear_01
 ## SavedVariables: DjinnisUIEnhancementsDB
@@ -12,5 +12,6 @@ Core.lua
 BossTarget.lua
 IronfurBar.lua
 ComboPoints.lua
+EnergyBar.lua
 EditMode.lua
 PriceTrackerTSM.lua

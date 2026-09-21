@@ -534,6 +534,15 @@ function Mod.Init()
             } },
             { "choice", "clawFrame", "Claw", clawChoices() },
         })
+        registerPlain(ns.modules.EnergyBar, "energyBar", "Djinni's Energy Bar", {
+            { "slider", "width",  "Width",  60, 600, 1 },
+            { "slider", "height", "Height", 4,  60,  1 },
+            { "choice", "visibility", "Show", {
+                { "energy", "When energy is your power" },
+                { "always", "Always" },
+                { "never",  "Never" },
+            } },
+        })
         registerPlain(ns.modules.IronfurBar, "ironfurBar", "Djinni's Ironfur Bar", {
             { "slider", "scale",  "Scale",  0.5, 2.0, 0.05 },
             { "slider", "width",  "Width",  60,  600, 1 },
