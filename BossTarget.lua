@@ -296,11 +296,37 @@ local function applyLayout(opts)
 end
 Mod.ApplyLayout = applyLayout
 
+-- Secure visibility helper: avoids the protected :Show()/:Hide() restriction
+-- on SecureUnitButton frames. RegisterUnitWatch and RegisterAttributeDriver
+-- drive visibility through secure handlers, but they SetAttribute on
+-- SecureStateDriverManager, which is blocked in combat (ADDON_ACTION_BLOCKED,
+-- seen when Edit Mode was closed mid-fight). In combat the last requested
+-- mode per frame is kept and applied when combat ends.
+local pendingVisibility = {}
+
+local function setFrameVisibility(f, mode)
+    if InCombatLockdown() then
+        pendingVisibility[f] = mode
+        return
+    end
+    pendingVisibility[f] = nil
+    UnregisterUnitWatch(f)
+    UnregisterAttributeDriver(f, "state-visibility")
+    if mode == "watch" then
+        RegisterUnitWatch(f)
+    elseif mode == "show" then
+        RegisterAttributeDriver(f, "state-visibility", "show")
+    elseif mode == "hide" then
+        RegisterAttributeDriver(f, "state-visibility", "hide")
+    end
+end
+
 local function ensureCombatWatcher()
     if combatWatcher then return end
     combatWatcher = CreateFrame("Frame")
     combatWatcher:RegisterEvent("PLAYER_REGEN_ENABLED")
     combatWatcher:SetScript("OnEvent", function()
+        for f, mode in pairs(pendingVisibility) do setFrameVisibility(f, mode) end
         if layoutPending then
             layoutPending = false
             applyLayout()
@@ -354,21 +380,6 @@ end
 
 function Mod.GetMaxFrames()
     return MAX_BOSS_FRAMES
-end
-
--- Secure visibility helper: avoids the protected :Show()/:Hide() restriction
--- on SecureUnitButton frames. RegisterUnitWatch and RegisterAttributeDriver
--- are insecure-callable but drive visibility through secure handlers.
-local function setFrameVisibility(f, mode)
-    UnregisterUnitWatch(f)
-    UnregisterAttributeDriver(f, "state-visibility")
-    if mode == "watch" then
-        RegisterUnitWatch(f)
-    elseif mode == "show" then
-        RegisterAttributeDriver(f, "state-visibility", "show")
-    elseif mode == "hide" then
-        RegisterAttributeDriver(f, "state-visibility", "hide")
-    end
 end
 
 function Mod.Show()
