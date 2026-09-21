@@ -33,6 +33,13 @@ local DEFAULTS = {
         -- "always" = always show while a Druid is logged in
         -- "points" = only in Cat Form and only with at least 1 point
         visibility = "cat",
+        -- Resting shape. 0 = Blizzard's round gems with the claw swiping on
+        -- gain, which is the combination Rob accepted on 2026-09-08 and the
+        -- reason this defaults to 0 rather than to the newer option. 1..20 pins
+        -- that frame of the UF-DruidCP-Slash flipbook as a still claw instead.
+        -- Which frame reads as a claw can only be judged on screen, so it is a
+        -- dial rather than a constant, and `/djue cp claw 0` is the way back.
+        clawFrame = 0,
     },
     bossTarget = {
         enabled = true,
@@ -73,6 +80,32 @@ local function mergeDefaults(dst, src)
             dst[k] = v
         end
     end
+end
+
+-- Position of a plain UIParent frame: its CENTER against UIParent's CENTER,
+-- in UIParent units. SetPoint offsets are in the frame's own (scaled) units,
+-- so they are divided by scale on the way in. That is what makes a scale
+-- change grow the frame around its middle instead of sliding it away.
+function ns.savePosition(frame, cfg)
+    local s = frame:GetScale()
+    local cx, cy = frame:GetCenter()
+    local ux, uy = UIParent:GetCenter()
+    cfg.point, cfg.relativePoint = "CENTER", "CENTER"
+    cfg.x = math.floor(cx * s - ux + 0.5)
+    cfg.y = math.floor(cy * s - uy + 0.5)
+end
+
+function ns.applyPosition(frame, cfg)
+    frame:SetScale(cfg.scale)
+    frame:ClearAllPoints()
+    if cfg.point ~= "CENTER" or cfg.relativePoint ~= "CENTER" then
+        -- Saved before 2026-09-21 as a corner anchor in frame units. Place it
+        -- the old way once and re-save it in the new form.
+        frame:SetPoint(cfg.point, UIParent, cfg.relativePoint, cfg.x, cfg.y)
+        ns.savePosition(frame, cfg)
+        frame:ClearAllPoints()
+    end
+    frame:SetPoint("CENTER", UIParent, "CENTER", cfg.x / cfg.scale, cfg.y / cfg.scale)
 end
 
 ns.deepCopy = deepCopy
@@ -139,7 +172,8 @@ local helpLines = {
     "  /djue cp unlock | lock — drag the combo points to position",
     "  /djue cp size <n> | gap <n> | scale <n> — size/spacing/scale",
     "  /djue cp vis <always|cat|points> — when the combo points are shown",
-    "  /djue cp test — play the claw swipe on demand, to see if it works",
+    "  /djue cp claw <0-20> — 0 = the default gems + swipe, 1-20 = still claw",
+    "  /djue cp test — play the claw swipe on demand",
     "  /djue cp show | hide | reset | status | debug",
     "  (or use /editmode to configure visually)",
 }

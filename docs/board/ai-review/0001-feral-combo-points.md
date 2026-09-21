@@ -97,6 +97,20 @@ Every one of these needs a live client. Ticks below are from Rob's own `/djue cp
       fallback was not used.
 - [ ] Shift out of cat. The points hide. Shift back. They return.
 - [ ] `/djue cp unlock`, drag it, `/djue cp lock`, `/reload`. It is where it was left.
+- [ ] Open Edit Mode (Esc > Edit Mode). "Djinni's Combo Points" shows with a blue box and three
+  lit points. Drag it. Click it: a settings window opens (Scale, Point size, Spacing, Show).
+  Change each one and watch it apply. The box turns yellow when clicked, like Blizzard's.
+  Click a Blizzard frame: ours goes blue and our window closes. Click empty screen: the window
+  closes. Pick from the "Show" dropdown: the window must NOT close. Move Scale: the frame grows
+  around its centre and does not slide. With Snap on, drag it: Blizzard's snap lines show, and
+  it snaps by edge or centre to the grid, the screen centre and other frames, like Blizzard's own
+  (borrowed `EditModeSystemMixin` methods + `EditModeMagnetismManager:ApplyMagnetism`; the first
+  try, rounding the centre to the grid spacing, did not work in game).
+- [ ] The still claw is back (2026-09-21), as a "Claw" dropdown in the settings window: Gems, or
+  frame 1 to 20. Rob asked for it there so each frame can be judged live, which the slash-command
+  dial of 2026-09-08 made too slow. Pick a frame: three points light in the new shape. Close Edit Mode, `/reload`. It is where it was
+  left. Same for "Djinni's Ironfur Bar". Added 2026-09-21 (`EditMode.lua` `registerPlain`).
+  First attempt (frame drag only, no overlay) did not move in game.
 - [ ] Take the talent that raises the cap to 6. A sixth point appears.
 - [ ] No Lua error in BugSack after a full dungeon.
 

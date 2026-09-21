@@ -117,8 +117,7 @@ local function buildFrame()
 
     barContainer = CreateFrame("Frame", "DjinnisIronfurBar", UIParent, "BackdropTemplate")
     barContainer:SetSize(cfg.width, cfg.height)
-    barContainer:SetPoint(cfg.point, UIParent, cfg.relativePoint, cfg.x, cfg.y)
-    barContainer:SetScale(cfg.scale)
+    ns.applyPosition(barContainer, cfg)
     barContainer:SetMovable(true)
     barContainer:EnableMouse(false) -- enabled only during unlocked mode
 
@@ -161,12 +160,7 @@ local function buildFrame()
     end)
     barContainer:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        local point, _, relativePoint, x, y = self:GetPoint()
-        local c = ns.db.ironfurBar
-        c.point = point
-        c.relativePoint = relativePoint
-        c.x = math.floor(x + 0.5)
-        c.y = math.floor(y + 0.5)
+        ns.savePosition(self, ns.db.ironfurBar)
     end)
 
     barContainer:Hide()
@@ -400,9 +394,7 @@ local function applyLayout()
     if not barContainer or not ns.db then return end
     local cfg = ns.db.ironfurBar
     barContainer:SetSize(cfg.width, cfg.height)
-    barContainer:SetScale(cfg.scale)
-    barContainer:ClearAllPoints()
-    barContainer:SetPoint(cfg.point, UIParent, cfg.relativePoint, cfg.x, cfg.y)
+    ns.applyPosition(barContainer, cfg)
     local c = cfg.barColor
     if bar then bar:SetStatusBarColor(c[1], c[2], c[3], 1) end
 end
@@ -438,6 +430,7 @@ local function setUnlocked(unlocked)
         barContainer:SetBackdropBorderColor(0.25, 0.25, 0.25, 1)
     end
 end
+Mod.SetUnlocked = setUnlocked
 
 -- ---------------------------------------------------------------------------
 -- Init / public API

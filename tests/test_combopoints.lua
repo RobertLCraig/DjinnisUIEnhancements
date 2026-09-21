@@ -41,6 +41,9 @@ local function newTexture()
     function t:SetPoint() end
     function t:SetAllPoints() end
     function t:SetSize() end
+    function t:SetTexture() end
+    function t:SetTexCoord() end
+    function t:SetVertexColor() end
     function t:SetShown(v) self.shown = v and true or false end
     function t:SetAlpha(v) self.alpha = v end
     function t:Show() self.shown = true end
@@ -127,7 +130,18 @@ env.InCombatLockdown = function() return false end
 env.issecretvalue = function(v) return v == SECRET end -- rawequal-style, no metamethod
 env.C_Secrets = { ShouldUnitPowerBeSecret = function() return world.secretPower end,
                   ShouldUnitPowerMaxBeSecret = function() return world.secretPower end }
-env.C_Texture = { GetAtlasInfo = function() return { width = 20, height = 20 } end }
+-- `atlasKnown = false` is a client that no longer has the UF-DruidCP-* names.
+world.atlasKnown = true
+env.C_Texture = {
+    GetAtlasInfo = function()
+        if not world.atlasKnown then return nil end
+        return {
+            width = 20, height = 20, file = 12345,
+            leftTexCoord = 0.0, rightTexCoord = 0.5,
+            topTexCoord = 0.0, bottomTexCoord = 0.25,
+        }
+    end,
+}
 
 -- issecretvalue must not itself trip the metamethods.
 env.issecretvalue = function(v) return rawequal(v, SECRET) end
@@ -137,7 +151,26 @@ env.issecretvalue = function(v) return rawequal(v, SECRET) end
 -- ---------------------------------------------------------------------------
 
 local here = arg[0]:match("^(.*)[/\\][^/\\]*$") or "."
-local ns = { modules = {}, print = function() end }
+
+-- WoW runs Lua 5.1, but this harness runs on whatever `lua` is on PATH, so
+-- load a file into `env` the way both versions allow.
+local function load(file, ns)
+    local chunk
+    if setfenv then
+        chunk = assert(loadfile(here .. "/../" .. file))
+        setfenv(chunk, env)
+    else
+        chunk = assert(loadfile(here .. "/../" .. file, "t", env))
+    end
+    chunk("DjinnisUIEnhancements", ns)
+end
+
+-- Core.lua first, for the real ns.savePosition / ns.applyPosition.
+env.SlashCmdList = {}
+env.UIParent.GetCenter = function() return 960, 540 end
+local ns = {}
+load("Core.lua", ns)
+ns.print = function() end
 ns.DEFAULTS = {
     comboPoints = {
         enabled = true, scale = 1.0, size = 26, spacing = 8,
@@ -145,20 +178,11 @@ ns.DEFAULTS = {
         visibility = "cat",
     },
 }
+ns.DEFAULTS.comboPoints.clawFrame = 0 -- gems, so litCount() reads the gem art
 ns.db = { comboPoints = {} }
 for k, v in pairs(ns.DEFAULTS.comboPoints) do ns.db.comboPoints[k] = v end
 
--- WoW runs Lua 5.1, but this harness runs on whatever `lua` is on PATH, so
--- load the file into `env` the way both versions allow.
-local path = here .. "/../ComboPoints.lua"
-local chunk
-if setfenv then
-    chunk = assert(loadfile(path))
-    setfenv(chunk, env)
-else
-    chunk = assert(loadfile(path, "t", env))
-end
-chunk("DjinnisUIEnhancements", ns)
+load("ComboPoints.lua", ns)
 
 local Mod = ns.modules.ComboPoints
 Mod.Init()
@@ -285,6 +309,78 @@ world.class = "DRUID"
 -- ---------------------------------------------------------------------------
 -- Events actually got registered
 -- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- Claw style: the shape swaps, and a failed crop falls back to the gems
+-- ---------------------------------------------------------------------------
+
+local function count(field)
+    local n = 0
+    for _, child in ipairs(container._children) do
+        if child[field] and child[field].shown then n = n + 1 end
+    end
+    return n
+end
+
+ns.db.comboPoints.visibility = "cat"
+world.powerType, world.class, world.combo = 3, "DRUID", 3
+
+ns.db.comboPoints.clawFrame = 10
+Mod.ApplyLayout()
+Mod.Redraw()
+check("claw frame shows the claw", count("claw") == 5, "got " .. count("claw"))
+check("claw frame hides the gem icon", count("icon") == 0, "got " .. count("icon"))
+
+ns.db.comboPoints.clawFrame = 0
+Mod.ApplyLayout()
+Mod.Redraw()
+check("frame 0 goes back to gems", count("claw") == 0 and count("icon") == 5,
+      ("claw=%d icon=%d"):format(count("claw"), count("icon")))
+check("gems still count correctly after the round trip", litCount() == 3, "got " .. litCount())
+
+-- A client that no longer knows the atlas must not leave an empty row.
+world.atlasKnown = false
+ns.db.comboPoints.clawFrame = 10
+Mod.ApplyLayout()
+Mod.Redraw()
+check("unknown atlas falls back to gems rather than nothing",
+      count("claw") == 0 and count("icon") == 5,
+      ("claw=%d icon=%d"):format(count("claw"), count("icon")))
+world.atlasKnown = true
+ns.db.comboPoints.clawFrame = 0
+Mod.ApplyLayout()
+
+-- ---------------------------------------------------------------------------
+-- Scale grows the frame around its centre (Rob, 2026-09-21: it used to slide)
+-- ---------------------------------------------------------------------------
+--
+-- A frame anchored CENTER to UIParent CENTER with offset o, at scale s, has
+-- its centre at uiCentre + o*s in UIParent units, and GetCenter() answers in
+-- the frame's own units, which is that divided by s.
+
+local function posFrame()
+    local f = { s = 1, ox = 0, oy = 0 }
+    function f:SetScale(s) self.s = s end
+    function f:GetScale() return self.s end
+    function f:ClearAllPoints() end
+    function f:SetPoint(_, _, _, x, y) self.ox, self.oy = x, y end
+    function f:GetCenter() return (960 + self.ox * self.s) / self.s, (540 + self.oy * self.s) / self.s end
+    function f:uiCentre() return 960 + self.ox * self.s, 540 + self.oy * self.s end
+    return f
+end
+
+local pf = posFrame()
+local pc = { scale = 1, point = "CENTER", relativePoint = "CENTER", x = 40, y = -200 }
+ns.applyPosition(pf, pc)
+local x1, y1 = pf:uiCentre()
+pc.scale = 1.7
+ns.applyPosition(pf, pc)
+local x2, y2 = pf:uiCentre()
+check("scale change keeps the centre", math.abs(x1 - x2) < 0.01 and math.abs(y1 - y2) < 0.01,
+    ("%.1f,%.1f -> %.1f,%.1f"):format(x1, y1, x2, y2))
+ns.savePosition(pf, pc)
+check("save after scale gives back the same offset", pc.x == 40 and pc.y == -200,
+    ("got %s,%s"):format(pc.x, pc.y))
 
 print(("%d passed, %d failed"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)
