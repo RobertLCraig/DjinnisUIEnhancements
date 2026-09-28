@@ -368,8 +368,25 @@ local function getDialog()
         end
         d:Hide()
     end)
-    d:HookScript("OnShow", function() d:RegisterEvent("GLOBAL_MOUSE_DOWN") end)
-    d:HookScript("OnHide", function() d:UnregisterEvent("GLOBAL_MOUSE_DOWN") end)
+    -- Verified with IsEventRegistered, because 12.1 can refuse a RegisterEvent
+    -- silently and pcall cannot see it (workspace docs/DECISIONS.md,
+    -- 2026-08-21). A refusal is reported once and never retried: re-registering
+    -- on every OnShow is the BearWatch trap of an ADDON_ACTION_FORBIDDEN per
+    -- attempt. Refused, the dialog still closes on its X, on another
+    -- selection and on leaving Edit Mode.
+    local clickOutsideRefused = false
+    d:HookScript("OnShow", function()
+        if clickOutsideRefused then return end
+        d:RegisterEvent("GLOBAL_MOUSE_DOWN")
+        if not d:IsEventRegistered("GLOBAL_MOUSE_DOWN") then
+            clickOutsideRefused = true
+            print("Edit Mode: the game refused GLOBAL_MOUSE_DOWN, so a click outside"
+                .. " will not close the settings window. Use its X. Nothing is retried.")
+        end
+    end)
+    d:HookScript("OnHide", function()
+        if not clickOutsideRefused then d:UnregisterEvent("GLOBAL_MOUSE_DOWN") end
+    end)
 
     dialog = d
     return d
