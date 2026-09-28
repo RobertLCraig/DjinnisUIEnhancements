@@ -1,5 +1,33 @@
 # 0001 Feral combo points
 
+## What I need from you
+
+**Play a feral druid and walk these steps. Already deployed (v0.6.0 plus the 2026-09-29 Edit Mode
+fix); `/reload` if the game is running.** Each step has its own pass.
+
+1. In cat form, shift to bear or caster. **Pass:** the points hide. Shift back: they return.
+2. Esc > Edit Mode. **Pass:** "Djinni's Combo Points" has a blue box with three lit points.
+3. Drag it with Snap on. **Pass:** Blizzard's snap lines show and it snaps to edges, centre and
+   other frames.
+4. Click it. **Pass:** the box turns yellow and a settings window opens (Point size, Spacing,
+   Show, Claw). Each change applies live.
+5. Open the Show dropdown and pick an entry. **Pass:** the window stays open.
+6. Click empty screen. **Pass:** the window closes. (If chat instead says "the game refused
+   GLOBAL_MOUSE_DOWN", note it here: that is the new fallback working, not a crash.)
+7. Click it again, then click a Blizzard frame. **Pass:** ours goes blue, our window closes.
+8. Claw dropdown: pick a frame number. **Pass:** the points take the new shape.
+9. Close Edit Mode, `/reload`. **Pass:** position, size, spacing and claw are as left.
+10. Repeat 2-4 and 9 for "Djinni's Ironfur Bar".
+11. Take the talent that raises the cap to 6. **Pass:** a sixth point appears.
+12. Run a full dungeon. **Pass:** no Lua error in BugSack from `DjinnisUIEnhancements`.
+
+**Fail:** write the step number and what you saw as a comment and move the card to `todo/`.
+
+**Why it needs you:** all of it is drawn by the game client, which no agent can run.
+
+The old `/djue cp unlock` drag criterion is covered by step 9: Edit Mode replaced unlock as the
+way to move it, and both save through the same `ns.savePosition`.
+
 ## Ask
 
 Rob, 2026-09-08: "Want to make an addon (or find an existing one that works with the current patch)
@@ -177,3 +205,42 @@ answer was no.
 
 An adversarial review still owes an entry here, including the three security questions from the
 board README, before this card leaves `ai-review/`.
+
+### 2026-09-29, adversarial review (unattended agent, not the builder)
+
+**Verdict: code holds after one fix; only in-game checks remain, so `human-review/`.**
+
+Attacked:
+- **Tests.** `tests/test_combopoints.lua` 26 passed. Mutation: deleting both guards in
+  `readCombo()` turns it red ("holds the last known count while secret -- got 0"). It has teeth.
+- **Secret values.** `readCombo` / `readComboMax` ask `C_Secrets.ShouldUnitPower(Max)BeSecret` then
+  `issecretvalue`, before any `tonumber` or comparison; both predicates are in
+  `SecretPredicateAPIDocumentation.lua`. `UnitPowerType` carries no secret flag in
+  `UnitDocumentation.lua`, so the cat test is safe in combat. No unit name, GUID or string from the
+  game is compared, joined or used as a key anywhere in `ComboPoints.lua` or `EditMode.lua`.
+- **Events.** The five module events: one at a time, after `SetScript`, each checked with
+  `IsEventRegistered`, refusal reported once. **Found:** `EditMode.lua`'s settings dialog
+  registered `GLOBAL_MOUSE_DOWN` on every `OnShow` with no check, so a refusal would have been
+  silent and retried per show (the BearWatch trap). **Fixed** in `fd6c5f0`: checked once, reported
+  once, never retried; the dialog still closes on its X, another selection, or leaving Edit Mode.
+  No test covers it: `EditMode.lua` needs Blizzard's Edit Mode to load. `luac -p` clean.
+- **Edit Mode APIs**, all found in `wow-ui-source` on `live`, none under `Blizzard_Deprecated*`:
+  `EditModeManagerFrame` `SetSnapPreviewFrame` / `ClearSnapPreviewFrame` / `IsSnapEnabled` /
+  `ClearSelectedSystem` / `SelectSystem`, `EditModeMagnetismManager:ApplyMagnetism`, all 21
+  borrowed `EditModeSystemMixin` methods (each defined once; `SnapToFrame` needs only
+  `self.Selection` and the frame's rect), `EditModeSystemSelectionTemplate` with
+  `ShowHighlighted` / `ShowSelected` / `isSelected`, the `EditMode.Enter` / `EditMode.Exit` registry
+  events, `MinimalSliderWithSteppersMixin:Init` and its `OnValueChanged` event, `CreateRadio`,
+  `Menu.GetManager():IsAnyMenuOpen`, `C_Texture.GetAtlasInfo` fields used by `clawTexCoords`.
+- **Rob's rules.** Every frame this addon draws is in Edit Mode (combo points, energy, Ironfur, boss
+  targets). The only right-click binding is the boss frames' secure `togglemenu`, which opens a menu.
+  A click of any button on an Edit Mode box opens its settings window, as Blizzard's boxes do.
+
+Not proven here: anything visual, the claw crops, snap feel, and whether 12.1 accepts
+`GLOBAL_MOUSE_DOWN` (step 6 settles it).
+
+Security: **weakest point** is taint, not data: writing `snapPreviewFrame` into
+`EditModeManagerFrame` from addon code is the same thing LibEditMode and EnhanceQoL do, and a
+Blizzard change there could make Edit Mode throw `ADDON_ACTION_BLOCKED`; step 12 is where that would
+show. **Unchecked:** slash-command input is range-checked (`size`, `gap`, `scale`, `claw`) before
+use. **Leaks:** nothing; no data leaves the client.
