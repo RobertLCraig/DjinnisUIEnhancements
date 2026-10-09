@@ -406,7 +406,14 @@ end
 
 local eventFrame = CreateFrame("Frame")
 
-local function onEvent(self, event)
+local function onEvent(self, event, _, powerType)
+    -- UNIT_POWER_FREQUENT also fires on every energy tick, many times a second
+    -- in Cat Form. Only a combo point change needs a redraw.
+    if event == "UNIT_POWER_FREQUENT" and powerType
+        and not (issecretvalue and issecretvalue(powerType))
+        and powerType ~= "COMBO_POINTS" then
+        return
+    end
     if event == "UNIT_MAXPOWER" then
         refreshMax()
     end
